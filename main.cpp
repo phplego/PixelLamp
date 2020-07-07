@@ -126,15 +126,15 @@ void setup()
 
         str += "speed: "; 
         str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed=5\"'> ";
-        str += String() + (speed == 5 ? "* " : "") + 5;
+        str += String() + (gSpeed == 5 ? "* " : "") + 5;
         str += "</button> "; 
 
         for(int i = 10; i < 61; i+=10){
             str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed="+String(i)+"\"'> ";
-            str += String() + (speed == i ? "* " : "") + i;
+            str += String() + (gSpeed == i ? "* " : "") + i;
             str += "</button> "; 
         }
-        str += " current: " + String(speed); 
+        str += " current: " + String(gSpeed); 
 
         webService.server->send(200, "text/html; charset=utf-8", str);     
     });
@@ -148,8 +148,7 @@ void setup()
     });
 
     webService.server->on("/set-speed", [](){
-        speed = atoi(webService.server->arg(0).c_str());
-        modes[currentMode].speed = speed;
+        gSpeed = atoi(webService.server->arg(0).c_str());
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
