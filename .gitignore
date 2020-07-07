@@ -1,6 +1,4 @@
 /.pio
 /.vscode
-/WebSocketService.cpp
-/WebSocketService.h
 /lib
 /send_udp.py
