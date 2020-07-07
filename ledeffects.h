@@ -311,6 +311,9 @@ void matrixRoutine() {
   for (byte x = 0; x < WIDTH; x++) {
     // заполняем случайно верхнюю строку
     uint32_t thisColor = getPixColorXY(x, HEIGHT - 1);
+    if((thisColor & 0x00FF00) != thisColor) // если попался "незеленый пиксель"
+      thisColor = 0;
+
     if (thisColor == 0)
       drawPixelXY(x, HEIGHT - 1, 0x00FF00 * (random(0, modes[16].scale) == 0));
     else if (thisColor < 0x002000)
@@ -401,8 +404,8 @@ static uint16_t x;
 static uint16_t y;
 static uint16_t z;
 
-uint16_t speed = 20; // speed is set dynamically once we've started up
-uint16_t scale = 30; // scale is set dynamically once we've started up
+uint16_t speed = 30; // speed is set dynamically once we've started up
+uint16_t scale = 40; // scale is set dynamically once we've started up
 
 // This is the array that we keep our computed noise values in
 #define MAX_DIMENSION WIDTH
@@ -571,7 +574,7 @@ void effectsTick()
     // }
     //currentMode = 17;
 
-    if (millis() - effTimer >= 100 ) {
+    if (millis() - effTimer >= 30 ) {
         effTimer = millis();
         switch (currentMode) {
             case 0: sparklesRoutine();

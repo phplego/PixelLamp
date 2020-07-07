@@ -121,6 +121,20 @@ void setup()
             str += String() + (currentMode == i ? "* " : "") + modeNames[i];
             str += "</button> "; 
         }
+        str += "<br>"; 
+        str += "<br>"; 
+
+        str += "speed: "; 
+        str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed=5\"'> ";
+        str += String() + (speed == 5 ? "* " : "") + 5;
+        str += "</button> "; 
+
+        for(int i = 10; i < 61; i+=10){
+            str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed="+String(i)+"\"'> ";
+            str += String() + (speed == i ? "* " : "") + i;
+            str += "</button> "; 
+        }
+        str += " current: " + String(speed); 
 
         webService.server->send(200, "text/html; charset=utf-8", str);     
     });
@@ -129,8 +143,14 @@ void setup()
 
     webService.server->on("/set-mode", [](){
         currentMode = atoi(webService.server->arg(0).c_str());
-        //webService.server->send(200, "text/html", "OK");
-        webService.server->sendHeader("Location", "/",true);   //Redirect to our html web page  
+        webService.server->sendHeader("Location", "/",true);   //Redirect to index
+        webService.server->send(302, "text/plane","");
+    });
+
+    webService.server->on("/set-speed", [](){
+        speed = atoi(webService.server->arg(0).c_str());
+        modes[currentMode].speed = speed;
+        webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
 
