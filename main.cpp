@@ -1,20 +1,56 @@
 #include <ArduinoOTA.h>
+#include <ArduinoJson.h>
 #include <FastLED.h>
 #include <ESP8266WiFi.h>
+#include <Adafruit_MQTT.h>
+#include <Adafruit_MQTT_Client.h>
 #include "WebService.h"
 
 
-#define APP_VERSION     "0.1"
+#define APP_VERSION     "0.2"
 #define DEVICE_ID       "PixelLamp"
 #define LED_PIN         2
+
+#define MQTT_HOST "192.168.1.157"   // MQTT host (e.g. m21.cloudmqtt.com)
+#define MQTT_PORT 11883             // MQTT port (e.g. 18076)
+
 
 CRGB leds[256] = {0};
 #include "ledeffects.h"
 
 
-
+WiFiClient client;                                          // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
 WebService          webService(&wifiManager);    // Web Server
+
+Adafruit_MQTT_Client mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
+Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set", MQTT_QOS_1);
+
+// Function to connect and reconnect as necessary to the MQTT server.
+// Should be called in the loop function and it will take care if connecting.
+void MQTT_connect(Adafruit_MQTT_Client * mqtt) {
+    int8_t ret;
+
+    // Stop if already connected.
+    if (mqtt->connected()) {
+        return;
+    }
+
+    Serial.print("Connecting to MQTT... ");
+
+    uint8_t retries = 5;
+    while ((ret = mqtt->connect()) != 0) { // connect will return 0 for connected
+        Serial.println(mqtt->connectErrorString(ret));
+        Serial.println("Retrying MQTT connection in X seconds...");
+        mqtt->disconnect();
+        delay(1000);  // wait X seconds
+        retries--;
+        if (retries == 0) {
+            return;
+        }
+    }
+    Serial.println("MQTT Connected!");
+}    
 
 
 void setup() 
@@ -98,6 +134,62 @@ void setup()
         webService.server->send(302, "text/plane","");
     });
 
+    // Setup MQTT subscription for the 'set' topic.
+    mqtt.subscribe(&mqtt_sub_set);
+
+    
+    mqtt_sub_set.setCallback([](char *str, uint16_t len){
+
+        char buf [len + 1];
+        buf[len] = 0;
+        strncpy(buf, str, len);
+
+        Serial.println(String("Got mqtt message: ") + buf);
+
+        const int JSON_SIZE = 1024;
+
+        DynamicJsonDocument root(JSON_SIZE);
+        DeserializationError error = deserializeJson(root, buf);
+        
+        if(error) return;
+
+        if(root.containsKey("mode"))
+            currentMode = root["mode"];           // 0..17
+
+    });
+
+    
+    ArduinoOTA.onStart([]() {
+        String type;
+        if (ArduinoOTA.getCommand() == U_FLASH) {
+            type = "sketch";
+        } else { // U_FS
+            type = "filesystem";
+        }
+
+        // NOTE: if updating FS this would be the place to unmount FS using FS.end()
+        Serial.println("Start updating " + type);
+    });
+    ArduinoOTA.onEnd([]() {
+        Serial.println("\nEnd");
+    });
+    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    });
+    ArduinoOTA.onError([](ota_error_t error) {
+        Serial.printf("Error[%u]: ", error);
+        if (error == OTA_AUTH_ERROR) {
+        Serial.println("Auth Failed");
+        } else if (error == OTA_BEGIN_ERROR) {
+        Serial.println("Begin Failed");
+        } else if (error == OTA_CONNECT_ERROR) {
+        Serial.println("Connect Failed");
+        } else if (error == OTA_RECEIVE_ERROR) {
+        Serial.println("Receive Failed");
+        } else if (error == OTA_END_ERROR) {
+        Serial.println("End Failed");
+        }
+    });
 
     ArduinoOTA.begin();
 
@@ -112,5 +204,12 @@ void loop()
     effectsTick();
     webService.loop();
     ArduinoOTA.handle();
-    delay(5);
+
+    // Ensure the connection to the MQTT server is alive (this will make the first
+    // connection and automatically reconnect when disconnected).  See the MQTT_connect()
+    MQTT_connect(&mqtt);
+        
+        
+    // wait X milliseconds for subscription messages
+    mqtt.processPackets(10);
 }
