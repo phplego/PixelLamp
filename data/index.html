@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>PixelLamp</title>
+
+    <script>
+        let connection = null;
+
+        function httpGet(theUrl)
+        {
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.open( 'GET', theUrl, false ); // false for synchronous request
+            xmlHttp.send( null );
+            return xmlHttp.responseText;
+        }
+
+        function connect() {
+
+            let host = location.hostname;
+            connection = new WebSocket('ws://' + host + ':81/', ['arduino']);
+            
+            connection.onopen = function () {
+                connection.send('loading..');
+                console.log('Connected ' + new Date());
+            };
+            connection.onerror = function (error) {
+                console.log('WebSocket Error ', error);
+            };
+            connection.onmessage = function (e) {
+                //let data = JSON.parse(e.data);
+                console.log('onmessage e.data', e.data);
+            };
+            connection.onclose = function () {
+                console.log('WebSocket connection closed');
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', function(event) {
+            connect();
+        });
+
+        function test(){
+            alert(2123);
+            connection.send("Hello esp!");
+        }
+        function test2(){
+            connection.binaryType = 'arraybuffer';
+            let buffer = new ArrayBuffer(256*3);
+            let bufView = new Uint8Array(buffer);
+
+            Math.random();
+
+            let r = Math.floor(0xFF * Math.random());
+            let g = Math.floor(0xFF * Math.random());
+            let b = Math.floor(0xFF * Math.random());
+
+            for(let k=0; k < 256; k++){
+                bufView[k*3]    = r;
+                bufView[k*3+1]  = g;
+                bufView[k*3+2]  = b;
+            }
+            connection.send(buffer);
+        }
+
+    </script>
+</head>
+<body>
+<button onclick="test()">test</button>
+<button onclick="test2()">test2</button>
+</body>
+</html>
