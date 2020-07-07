@@ -17,30 +17,6 @@ void WebService::init()
     menu += "<a href='/logout'>logout</a> ";
     menu += "</div><hr>";
 
-    this->server->on("/", [this, menu](){
-        String str = ""; 
-        str += menu;
-        str += "<pre>";
-        
-        str += String() + "           Uptime: " + (millis() / 1000) + " \n";
-        str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
-        str += String() + "      ESP Chip ID: " + ESP.getChipId() + " \n";
-        str += String() + "       CpuFreqMHz: " + ESP.getCpuFreqMHz() + " \n";
-        str += String() + "              VCC: " + ESP.getVcc() + " \n";
-        str += String() + "         FreeHeap: " + ESP.getFreeHeap() + " \n";
-        str += String() + "       SketchSize: " + ESP.getSketchSize() + " \n";
-        str += String() + "  FreeSketchSpace: " + ESP.getFreeSketchSpace() + " \n";
-        str += String() + "    FlashChipSize: " + ESP.getFlashChipSize() + " \n";
-        str += String() + "FlashChipRealSize: " + ESP.getFlashChipRealSize() + " \n";
-        str += "</pre>";
-
-        for(int i = 0; i <= 17; i++){
-            str += "<a style='font-size:25px' href='/set-mode?mode="+String(i)+"'> mode "+String(i)+" </a><br> ";
-        }
-
-        server->send(200, "text/html; charset=utf-8", str);     
-    });
-
 
 
 

@@ -6,7 +6,7 @@
 
 #define APP_VERSION     "0.1"
 #define DEVICE_ID       "PixelLamp"
-
+#define LED_PIN         2
 
 CRGB leds[256] = {0};
 #include "ledeffects.h"
@@ -23,7 +23,7 @@ void setup()
     Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
 
     // ЛЕНТА
-    FastLED.addLeds<WS2812B, 2, GRB>(leds, 256);//.setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, 256);//.setCorrection( TypicalLEDStrip );
     FastLED.setBrightness(40);
     FastLED.setMaxPowerInVoltsAndMilliamps(5, 200);
     FastLED.clear();
@@ -34,17 +34,6 @@ void setup()
     leds[3] = CRGB::Green;
     leds[4] = CRGB::Blue;
 
-    leds[16+0] = CRGB::Blue;
-    leds[16+1] = CRGB::Magenta;
-    leds[16+2] = CRGB::Red;
-    leds[16+3] = CRGB::Green;
-    leds[16+4] = CRGB::Blue;
-
-    leds[32+0] = CRGB::Blue;
-    leds[32+1] = CRGB::Magenta;
-    leds[32+2] = CRGB::Red;
-    leds[32+3] = CRGB::Green;
-    leds[32+4] = CRGB::Blue;
 
     FastLED.show();
     delay(50);
@@ -76,6 +65,32 @@ void setup()
     // socketService.init();
     webService.init();
 
+    webService.server->on("/", [](){
+        String str = ""; 
+        str += "<pre>";
+        str += String() + "           Uptime: " + (millis() / 1000) + " \n";
+        str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
+        str += String() + "      ESP Chip ID: " + ESP.getChipId() + " \n";
+        str += String() + "       CpuFreqMHz: " + ESP.getCpuFreqMHz() + " \n";
+        str += String() + "              VCC: " + ESP.getVcc() + " \n";
+        str += String() + "         FreeHeap: " + ESP.getFreeHeap() + " \n";
+        str += String() + "       SketchSize: " + ESP.getSketchSize() + " \n";
+        str += String() + "  FreeSketchSpace: " + ESP.getFreeSketchSpace() + " \n";
+        str += String() + "    FlashChipSize: " + ESP.getFlashChipSize() + " \n";
+        str += String() + "FlashChipRealSize: " + ESP.getFlashChipRealSize() + " \n";
+        str += "</pre>";
+
+        for(int i = 0; i < MODE_AMOUNT; i++){
+            str += "<button style='font-size:25px' onclick='document.location=\"/set-mode?mode="+String(i)+"\"'> ";
+            str += String() + (currentMode == i ? "* " : "") + modeNames[i];
+            str += "</button> "; 
+        }
+
+        webService.server->send(200, "text/html; charset=utf-8", str);     
+    });
+
+
+
     webService.server->on("/set-mode", [](){
         currentMode = atoi(webService.server->arg(0).c_str());
         //webService.server->send(200, "text/html", "OK");
@@ -97,6 +112,5 @@ void loop()
     effectsTick();
     webService.loop();
     ArduinoOTA.handle();
-    delay(55);
-
+    delay(5);
 }

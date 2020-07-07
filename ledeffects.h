@@ -24,6 +24,28 @@ struct {
   byte scale = 40;
 } modes[MODE_AMOUNT];
 
+// mode names
+const char * modeNames [MODE_AMOUNT] = {
+  "sparkles",
+  "fire",
+  "rainbowVertical",
+  "rainbowHorizontal",
+  "colors",
+  "madness",
+  "cloud",
+  "lava",
+  "plasma",
+  "rainbow",
+  "rainbowStripe",
+  "zebra",
+  "forest",
+  "ocean",
+  "color",
+  "snow",
+  "matrix",
+  "lighters"
+};
+
 // служебные функции
 
 // залить все
