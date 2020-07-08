@@ -4,16 +4,16 @@
 #include <WiFiManager.h>
 #include <ESP8266WebServer.h>
 #include <FS.h>
+#include "utils.h"
 
 
 class WebService {
     public:
-        WiFiManager*        wifiManager;
         ESP8266WebServer*   server;
     
     public:
         // Default Constructor 
-        WebService(WiFiManager*); 
+        WebService(); 
         void init();
         void loop();
 

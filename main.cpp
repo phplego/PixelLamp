@@ -4,7 +4,10 @@
 #include <ESP8266WiFi.h>
 #include <Adafruit_MQTT.h>
 #include <Adafruit_MQTT_Client.h>
+#include <EEPROM.h>
 #include "WebService.h"
+#include "utils.h"
+
 
 
 #define APP_VERSION     "0.2"
@@ -19,49 +22,59 @@ CRGB leds[256] = {0};
 #include "ledeffects.h"
 
 
-WiFiClient client;                                          // WiFi Client
+const char* gConfigFile = "/config.json";
+byte gBrightness = 40;
+bool gRestart = false;
+
+WiFiClient          client;                      // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
-WebService          webService(&wifiManager);    // Web Server
+WebService          webService;    // Web Server
 
 Adafruit_MQTT_Client mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
 Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set", MQTT_QOS_1);
 
-// Function to connect and reconnect as necessary to the MQTT server.
-// Should be called in the loop function and it will take care if connecting.
-void MQTT_connect(Adafruit_MQTT_Client * mqtt) {
-    int8_t ret;
 
-    // Stop if already connected.
-    if (mqtt->connected()) {
-        return;
+void saveTheConfig()
+{
+    int addr = 0;
+    for (int i = 0; i < MODE_COUNT; i++)
+    {
+        EEPROM.put(addr++, gModeConfigs[i].speed);
+        EEPROM.put(addr++, gModeConfigs[i].scale);
     }
 
-    Serial.print("Connecting to MQTT... ");
+    EEPROM.put(addr++, gCurrentMode);
 
-    uint8_t retries = 5;
-    while ((ret = mqtt->connect()) != 0) { // connect will return 0 for connected
-        Serial.println(mqtt->connectErrorString(ret));
-        Serial.println("Retrying MQTT connection in X seconds...");
-        mqtt->disconnect();
-        delay(1000);  // wait X seconds
-        retries--;
-        if (retries == 0) {
-            return;
-        }
+    EEPROM.commit();
+}
+
+void loadTheConfig()
+{
+    int addr = 0;
+    for (int i = 0; i < MODE_COUNT; i++)
+    {
+        EEPROM.get(addr++, gModeConfigs[i].speed);
+        EEPROM.get(addr++, gModeConfigs[i].scale);
     }
-    Serial.println("MQTT Connected!");
-}    
-
+    
+    EEPROM.get(addr++, gCurrentMode);
+}
 
 void setup() 
 {
 
     Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
 
+    EEPROM.begin(512);
+
+    // config loading
+    loadTheConfig();
+
+
     // ЛЕНТА
     FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, 256);//.setCorrection( TypicalLEDStrip );
-    FastLED.setBrightness(40);
-    FastLED.setMaxPowerInVoltsAndMilliamps(5, 200);
+    FastLED.setBrightness(gBrightness);
+    FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
     FastLED.clear();
 
     leds[0] = CRGB::Blue;
@@ -84,6 +97,9 @@ void setup()
     wifiManager.setAPStaticIPConfig(IPAddress(10, 0, 1, 1), IPAddress(10, 0, 1, 1), IPAddress(255, 255, 255, 0));
     wifiManager.autoConnect(apName.c_str(), "12341234"); // IMPORTANT! Blocks execution. Waits until connected
 
+    //WiFi.begin("OpenWrt_2GHz", "111");
+
+
     // Wait for WIFI connection
 
     while (WiFi.status() != WL_CONNECTED)
@@ -101,8 +117,17 @@ void setup()
     // socketService.init();
     webService.init();
 
-    webService.server->on("/", [](){
+    String menu;
+        menu += "<div>";
+        menu += "<a href='/'>index</a> ";
+        menu += "<a href='/logout'>logout</a> ";
+        menu += "<a href='/restart'>restart</a> ";
+        menu += "</div><hr>";
+
+
+    webService.server->on("/", [menu](){
         String str = ""; 
+        str += menu;
         str += "<pre>";
         str += String() + "           Uptime: " + (millis() / 1000) + " \n";
         str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
@@ -116,42 +141,96 @@ void setup()
         str += String() + "FlashChipRealSize: " + ESP.getFlashChipRealSize() + " \n";
         str += "</pre>";
 
-        for(int i = 0; i < MODE_AMOUNT; i++){
+        for(int i = 0; i < MODE_COUNT; i++){
             str += "<button style='font-size:25px' onclick='document.location=\"/set-mode?mode="+String(i)+"\"'> ";
-            str += String() + (currentMode == i ? "* " : "") + modeNames[i];
+            str += String() + (gCurrentMode == i ? "* " : "") + gModeNames[i];
             str += "</button> "; 
         }
         str += "<br>"; 
         str += "<br>"; 
 
-        str += "speed: "; 
-        str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed=5\"'> ";
-        str += String() + (gSpeed == 5 ? "* " : "") + 5;
-        str += "</button> "; 
-
-        for(int i = 10; i < 61; i+=10){
-            str += "<button style='font-size:25px' onclick='document.location=\"/set-speed?speed="+String(i)+"\"'> ";
+        str += "speed: " + String(gSpeed) + "<br>"; 
+        for(int i = 5; i < 61; i+=5){
+            str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-speed?speed="+String(i)+"\"'> ";
             str += String() + (gSpeed == i ? "* " : "") + i;
-            str += "</button> "; 
+            str += "</button>\n"; 
         }
-        str += " current: " + String(gSpeed); 
+        str += "<br><br>"; 
 
+        str += "scale: " + String(gScale) + "<br>"; 
+        for(int i = 5; i < 61; i+=5){
+            str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-scale?scale="+String(i)+"\"'> ";
+            str += String() + (gScale == i ? "* " : "") + i;
+            str += "</button>\n"; 
+        }
+
+        str += "<br><br>"; 
+
+        str += "brightness: " + String(gBrightness) + "<br>"; 
+        for(int i = 0; i < 255; i+=20){
+            str += " <button style='font-size:25px' onclick='document.location=\"/set-brightness?brightness="+String(i)+"\"'> ";
+            str += String() + (gBrightness == i ? "* " : "") + i;
+            str += "</button>\n"; 
+        }
         webService.server->send(200, "text/html; charset=utf-8", str);     
     });
 
 
 
     webService.server->on("/set-mode", [](){
-        currentMode = atoi(webService.server->arg(0).c_str());
+        gCurrentMode = atoi(webService.server->arg(0).c_str());
+        saveTheConfig();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index
         webService.server->send(302, "text/plane","");
     });
 
     webService.server->on("/set-speed", [](){
-        gSpeed = atoi(webService.server->arg(0).c_str());
+        gModeConfigs[gCurrentMode].speed = atoi(webService.server->arg(0).c_str());
+        saveTheConfig();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
+
+    webService.server->on("/set-scale", [](){
+        gModeConfigs[gCurrentMode].scale = atoi(webService.server->arg(0).c_str());
+        saveTheConfig();
+        webService.server->sendHeader("Location", "/",true);   //Redirect to index  
+        webService.server->send(302, "text/plane","");
+    });
+
+    webService.server->on("/set-brightness", [](){
+        gBrightness = atoi(webService.server->arg(0).c_str());          
+        FastLED.setBrightness(gBrightness);
+        saveTheConfig();
+        webService.server->sendHeader("Location", "/",true);   //Redirect to index  
+        webService.server->send(302, "text/plane","");
+    });
+
+    webService.server->on("/restart", [menu](){
+        webService.server->sendHeader("Location", "/",true);   //Redirect to index  
+        webService.server->send(200, "text/html", "<script> setTimeout(()=> document.location = '/', 1000) </script> restarting ESP ...");
+        gRestart = true;
+    });
+
+    // Logout (reset wifi settings)
+    webService.server->on("/logout", [menu](){
+        if(webService.server->method() == HTTP_POST){
+            webService.server->send(200, "text/html", "OK");
+            ESP.reset();
+        }
+        else{
+            String output = "";
+            output += menu;
+            output += String() + "<pre>";
+            output += String() + "Wifi network: " + WiFi.SSID() + " \n";
+            output += String() + "        RSSI: " + WiFi.RSSI() + " \n";
+            output += String() + "    hostname: " + WiFi.hostname() + " \n";
+            output += String() + "</pre>";
+            output += "<form method='post'><button>Forget</button></form>";
+            webService.server->send(400, "text/html", output);
+        }
+    });
+
 
     // Setup MQTT subscription for the 'set' topic.
     mqtt.subscribe(&mqtt_sub_set);
@@ -173,8 +252,20 @@ void setup()
         if(error) return;
 
         if(root.containsKey("mode"))
-            currentMode = root["mode"];           // 0..17
+            gCurrentMode = root["mode"];           // 0..17
 
+        if(root.containsKey("speed"))
+            gModeConfigs[gCurrentMode].speed = root["speed"];          
+
+        if(root.containsKey("scale"))
+            gModeConfigs[gCurrentMode].scale = root["scale"];          
+        
+        if(root.containsKey("brightness")){
+            gBrightness = root["brightness"];          
+            FastLED.setBrightness(gBrightness);
+        }
+
+        saveTheConfig();
     });
 
     
@@ -231,4 +322,9 @@ void loop()
         
     // wait X milliseconds for subscription messages
     mqtt.processPackets(10);
+
+    if(gRestart){
+        webService.loop();
+        ESP.restart();
+    }
 }

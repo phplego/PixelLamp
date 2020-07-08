@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define MODE_AMOUNT 18
+#define MODE_COUNT 18          // 0..17
 #define MATRIX_TYPE 0         // тип матрицы: 0 - зигзаг, 1 - параллельная
 
 //bool loadingFlag = false;
@@ -24,23 +24,27 @@ static uint16_t noiseX;
 static uint16_t noiseY;
 static uint16_t noiseZ;
 
-uint16_t gSpeed = 30; // speed is set dynamically once we've started up
-uint16_t gScale = 40; // scale is set dynamically once we've started up
+byte gSpeed = 30; // speed is set dynamically once we've started up
+byte gScale = 40; // scale is set dynamically once we've started up
 
 // This is the array that we keep our computed noise values in
 #define MAX_DIMENSION WIDTH
-uint8_t noise[HEIGHT][HEIGHT];
+uint8_t gNoiseArr[HEIGHT][HEIGHT];
 
-CRGBPalette16 currentPalette( PartyColors_p );
-uint8_t colorLoop = 1;
-uint8_t ihue = 0;
+CRGBPalette16 gNoiseCurrentPalette( PartyColors_p );
+uint8_t gNoiseColorLoop = 1;
+uint8_t gNoiseHue = 0;
 
 
-
+// array of mode configs
+struct {
+    byte speed = 0;
+    byte scale = 0;
+} gModeConfigs [MODE_COUNT];
 
 
 // mode names
-const char * modeNames [MODE_AMOUNT] = {
+const char * gModeNames [MODE_COUNT] = {
     "sparkles",
     "fire",
     "rainbowVertical",
@@ -339,54 +343,50 @@ void matrixRoutine() {
 }
 
 // ----------------------------- СВЕТЛЯКИ ------------------------------
-#define LIGHTERS_AM 21
-int lightersPos[2][LIGHTERS_AM];
-int8_t lightersSpeed[2][LIGHTERS_AM];
-CHSV lightersColor[LIGHTERS_AM];
-byte loopCounter;
-
-int angle[LIGHTERS_AM];
-int speedV[LIGHTERS_AM];
-int8_t angleSpeed[LIGHTERS_AM];
-bool lightersInited = false;
+#define LIGHTERS_AM 20
+struct { int x = 0; int y = 0; } gLightersPos [LIGHTERS_AM];
+struct { int vx = 0; int vy = 0; } gLightersSpeed [LIGHTERS_AM];
+CHSV gLightersColor[LIGHTERS_AM];
+byte gLightersloopCounter;
+bool gLightersInited = false;
 
 void lightersRoutine() {
-    if (!lightersInited) {
-        lightersInited = true;
+    if (!gLightersInited) {
+        gLightersInited = true;
         randomSeed(millis());
         for (byte i = 0; i < LIGHTERS_AM; i++) {
-            lightersPos[0][i] = random(0, WIDTH * 10);
-            lightersPos[1][i] = random(0, HEIGHT * 10);
-            lightersSpeed[0][i] = random(-10, 10);
-            lightersSpeed[1][i] = random(-10, 10);
-            lightersColor[i] = CHSV(100, 0, 255);
+            gLightersPos[i].x = random(0, WIDTH * 10);
+            gLightersPos[i].y = random(0, HEIGHT * 10);
+            gLightersSpeed[i].vx = random(-10, 10);
+            gLightersSpeed[i].vy = random(-10, 10);
+            gLightersColor[i] = CHSV(100, 0, 255);
         }
     }
     FastLED.clear();
-    if (++loopCounter > 20) loopCounter = 0;
-    for (byte i = 0; i < gScale; i++) {
-        if (loopCounter == 0) {     // меняем скорость каждые 255 отрисовок
-            lightersSpeed[0][i] += random(-3, 4);
-            lightersSpeed[1][i] += random(-3, 4);
-            lightersSpeed[0][i] = constrain(lightersSpeed[0][i], -10, 10);
-            lightersSpeed[1][i] = constrain(lightersSpeed[1][i], -10, 10);
+    if (++gLightersloopCounter > 20) gLightersloopCounter = 0;
+    for (byte i = 0; i < LIGHTERS_AM; i++) {
+        if (gLightersloopCounter == 0) {     // меняем скорость каждые 255 отрисовок
+            gLightersSpeed[i].vx += random(-3, 4);
+            gLightersSpeed[i].vy += random(-3, 4);
+            gLightersSpeed[i].vx = constrain(gLightersSpeed[i].vx, -5, 5);
+            gLightersSpeed[i].vy = constrain(gLightersSpeed[i].vy, -5, 5);
         }
 
-        lightersPos[0][i] += lightersSpeed[0][i];
-        lightersPos[1][i] += lightersSpeed[1][i];
+        gLightersPos[i].x += gLightersSpeed[i].vx;
+        gLightersPos[i].y += gLightersSpeed[i].vy;
 
-        if (lightersPos[0][i] < 0) lightersPos[0][i] = (WIDTH - 1) * 10;
-        if (lightersPos[0][i] >= WIDTH * 10) lightersPos[0][i] = 0;
+        if (gLightersPos[i].x < 0) gLightersPos[i].x = (WIDTH - 1) * 10;
+        if (gLightersPos[i].x >= WIDTH * 10) gLightersPos[i].x = 0;
 
-        if (lightersPos[1][i] < 0) {
-            lightersPos[1][i] = 0;
-            lightersSpeed[1][i] = -lightersSpeed[1][i];
+        if (gLightersPos[i].y < 0) {
+            gLightersPos[i].y = 0;
+            gLightersSpeed[i].vy = -gLightersSpeed[i].vy;
         }
-        if (lightersPos[1][i] >= (HEIGHT - 1) * 10) {
-            lightersPos[1][i] = (HEIGHT - 1) * 10;
-            lightersSpeed[1][i] = -lightersSpeed[1][i];
+        if (gLightersPos[i].y >= (HEIGHT - 1) * 10) {
+            gLightersPos[i].y = (HEIGHT - 1) * 10;
+            gLightersSpeed[i].vy = -gLightersSpeed[i].vy;
         }
-        drawPixelXY(lightersPos[0][i] / 10, lightersPos[1][i] / 10, lightersColor[i]);
+        drawPixelXY(gLightersPos[i].x / 10, gLightersPos[i].y / 10, gLightersColor[i]);
     }
 }
 
@@ -413,12 +413,12 @@ void fillNoiseLED() {
             data = qadd8(data, scale8(data, 39));
 
             if ( dataSmoothing ) {
-                uint8_t olddata = noise[i][j];
+                uint8_t olddata = gNoiseArr[i][j];
                 uint8_t newdata = scale8( olddata, dataSmoothing) + scale8( data, 256 - dataSmoothing);
                 data = newdata;
             }
 
-            noise[i][j] = data;
+            gNoiseArr[i][j] = data;
         }
     }
     noiseZ += gSpeed;
@@ -429,11 +429,11 @@ void fillNoiseLED() {
 
     for (int i = 0; i < WIDTH; i++) {
         for (int j = 0; j < HEIGHT; j++) {
-        uint8_t index = noise[j][i];
-        uint8_t bri =   noise[i][j];
+        uint8_t index = gNoiseArr[j][i];
+        uint8_t bri =   gNoiseArr[i][j];
         // if this palette is a 'loop', add a slowly-changing base value
-        if ( colorLoop) {
-            index += ihue;
+        if ( gNoiseColorLoop) {
+            index += gNoiseHue;
         }
         // brighten up, as the color palette itself often contains the
         // light/dark dynamic range desired
@@ -442,11 +442,11 @@ void fillNoiseLED() {
         } else {
             bri = dim8_raw( bri * 2);
         }
-        CRGB color = ColorFromPalette( currentPalette, index, bri);      
+        CRGB color = ColorFromPalette( gNoiseCurrentPalette, index, bri);      
         drawPixelXY(i, j, color);   //leds[getPixelNumber(i, j)] = color;
         }
     }
-    ihue += 1;
+    gNoiseHue += 1;
 }
 
 void fillnoise8() {
@@ -454,7 +454,7 @@ void fillnoise8() {
         int ioffset = gScale * i;
         for (int j = 0; j < MAX_DIMENSION; j++) {
             int joffset = gScale * j;
-            noise[i][j] = inoise8(noiseX + ioffset, noiseY + joffset, noiseZ);
+            gNoiseArr[i][j] = inoise8(noiseX + ioffset, noiseY + joffset, noiseZ);
         }
     }
     noiseZ += gSpeed;
@@ -464,65 +464,65 @@ void madnessNoise() {
     fillnoise8();
     for (int i = 0; i < WIDTH; i++) {
         for (int j = 0; j < HEIGHT; j++) {
-            CRGB thisColor = CHSV(noise[j][i], 255, noise[i][j]);
+            CRGB thisColor = CHSV(gNoiseArr[j][i], 255, gNoiseArr[i][j]);
             drawPixelXY(i, j, thisColor);   
         }
     }
-    ihue += 1;
+    gNoiseHue += 1;
 }
 
 void rainbowNoise() {
-    currentPalette = RainbowColors_p;
-    colorLoop = 1;
+    gNoiseCurrentPalette = RainbowColors_p;
+    gNoiseColorLoop = 1;
     fillNoiseLED();
 }
 
 void rainbowStripeNoise() {
-    currentPalette = RainbowStripeColors_p;
-    colorLoop = 1;
+    gNoiseCurrentPalette = RainbowStripeColors_p;
+    gNoiseColorLoop = 1;
     fillNoiseLED();
 }
 
 void zebraNoise() {
     // 'black out' all 16 palette entries...
-    fill_solid( currentPalette, 16, CRGB::Black);
+    fill_solid( gNoiseCurrentPalette, 16, CRGB::Black);
     // and set every fourth one to white.
-    currentPalette[0] = CRGB::White;
-    currentPalette[4] = CRGB::White;
-    currentPalette[8] = CRGB::White;
-    currentPalette[12] = CRGB::White;
+    gNoiseCurrentPalette[0] = CRGB::White;
+    gNoiseCurrentPalette[4] = CRGB::White;
+    gNoiseCurrentPalette[8] = CRGB::White;
+    gNoiseCurrentPalette[12] = CRGB::White;
     
-    colorLoop = 1;
+    gNoiseColorLoop = 1;
     fillNoiseLED();
 }
 
 void forestNoise() {
-    currentPalette = ForestColors_p;
-    colorLoop = 0;
+    gNoiseCurrentPalette = ForestColors_p;
+    gNoiseColorLoop = 0;
     fillNoiseLED();
 }
 
 void oceanNoise() {
-    currentPalette = OceanColors_p;
-    colorLoop = 0;
+    gNoiseCurrentPalette = OceanColors_p;
+    gNoiseColorLoop = 0;
     fillNoiseLED();   
 }
 
 void plasmaNoise() {
-    currentPalette = PartyColors_p;
-    colorLoop = 1;
+    gNoiseCurrentPalette = PartyColors_p;
+    gNoiseColorLoop = 1;
     fillNoiseLED();
 }
 
 void cloudNoise() {
-    currentPalette = CloudColors_p;
-    colorLoop = 0;
+    gNoiseCurrentPalette = CloudColors_p;
+    gNoiseColorLoop = 0;
     fillNoiseLED();
 }
 
 void lavaNoise() {
-    currentPalette = LavaColors_p;
-    colorLoop = 0;
+    gNoiseCurrentPalette = LavaColors_p;
+    gNoiseColorLoop = 0;
     fillNoiseLED();
 }
 
@@ -530,15 +530,20 @@ void lavaNoise() {
 //========================================================
 
 
-unsigned long effTimer = 0;
-int currentMode = 0;
+unsigned long gLastFrameTime = 0;
+byte gCurrentMode = 0;
 
 void effectsTick() 
 {
+    const unsigned int FRAME_INTERVAL = 30;
 
-    if (millis() - effTimer >= 30 ) {
-        effTimer = millis();
-        switch (currentMode) {
+    if (millis() - gLastFrameTime >= FRAME_INTERVAL ) {
+        gLastFrameTime = millis();
+
+        gSpeed = gModeConfigs[gCurrentMode].speed;
+        gScale = gModeConfigs[gCurrentMode].scale;
+
+        switch (gCurrentMode) {
             case 0: sparklesRoutine();
                 break;
             case 1: fireRoutine();
