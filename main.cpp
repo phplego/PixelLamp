@@ -24,7 +24,7 @@ CRGB leds[256] = {0};
 
 const char* gConfigFile = "/config.json";
 byte gBrightness = 40;
-bool gRestart = false;
+unsigned long gRestart = 0;
 
 WiFiClient          client;                      // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
@@ -208,8 +208,8 @@ void setup()
 
     webService.server->on("/restart", [menu](){
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
-        webService.server->send(200, "text/html", "<script> setTimeout(()=> document.location = '/', 1000) </script> restarting ESP ...");
-        gRestart = true;
+        webService.server->send(200, "text/html", "<script> setTimeout(()=> document.location = '/', 5000) </script> restarting ESP ...");
+        gRestart = millis();
     });
 
     // Logout (reset wifi settings)
@@ -323,8 +323,7 @@ void loop()
     // wait X milliseconds for subscription messages
     mqtt.processPackets(10);
 
-    if(gRestart){
-        webService.loop();
+    if(gRestart && millis() - gRestart > 1000){
         ESP.restart();
     }
 }
