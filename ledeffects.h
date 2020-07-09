@@ -32,7 +32,7 @@ byte gScale = 40; // scale is set dynamically once we've started up
 uint8_t gNoiseArr[HEIGHT][HEIGHT];
 
 CRGBPalette16 gNoiseCurrentPalette( PartyColors_p );
-uint8_t gNoiseColorLoop = 1;
+bool gNoiseColorLoop = true;
 uint8_t gNoiseHue = 0;
 
 
@@ -110,8 +110,7 @@ uint32_t getPixColorXY(int8_t x, int8_t y) {
 // ================================= ЭФФЕКТЫ ====================================
 
 
-void fadePixel(byte i, byte j, byte step) {     // новый фейдер
-    int pixelNum = getPixelNumber(i, j);
+void fadePixel(int pixelNum, byte step) {     // новый фейдер
     if (getPixColor(pixelNum) == 0) return;
 
     if (leds[pixelNum].r >= 30 ||
@@ -126,11 +125,8 @@ void fadePixel(byte i, byte j, byte step) {     // новый фейдер
 
 // функция плавного угасания цвета для всех пикселей
 void fader(byte step) {
-    for (byte i = 0; i < WIDTH; i++) {
-        for (byte j = 0; j < HEIGHT; j++) {
-        fadePixel(i, j, step);
-        }
-    }
+    for(int i = 0; i < NUM_LEDS; i++)
+        fadePixel(i, step);
 }
 
 // --------------------------------- конфетти ------------------------------------
@@ -203,32 +199,34 @@ void fireDrawFrame(int pcnt) {
     //each row interpolates with the one before it
     for (unsigned char y = HEIGHT - 1; y > 0; y--) {
         for (unsigned char x = 0; x < WIDTH; x++) {
-        uint8_t newX = x;
-        if (x > 15) newX = x - 15;
-        if (y < 8) {
-            nextv =
-            (((100.0 - pcnt) * fireMatrixValue[y][newX]
-                + pcnt * fireMatrixValue[y - 1][newX]) / 100.0)
-            - pgm_read_byte(&(fireValueMask[y][newX]));
+            uint8_t newX = x;
+            if (x > 15) newX = x - 15;
+            if (y < 8) {
+                nextv =
+                (((100.0 - pcnt) * fireMatrixValue[y][newX]
+                    + pcnt * fireMatrixValue[y - 1][newX]) / 100.0)
+                - pgm_read_byte(&(fireValueMask[y][newX]));
 
-            CRGB color = CHSV(
-                        gScale * 2.5 + pgm_read_byte(&(fireHueMask[y][newX])), // H
-                        255, // S
-                        (uint8_t)max(0, nextv) // V
-                        );
+                CRGB color = CHSV(
+                    gScale * 2.5 + pgm_read_byte(&(fireHueMask[y][newX])), // H
+                    255, // S
+                    (uint8_t)max(0, nextv) // V
+                );
 
-            leds[getPixelNumber(x, y)] = color;
-        } else if (y == 8 && SPARKLES) {
-            if (random(0, 20) == 0 && getPixColorXY(x, y - 1) != 0) drawPixelXY(x, y, getPixColorXY(x, y - 1));
-            else drawPixelXY(x, y, 0);
-        } else if (SPARKLES) {
+                leds[getPixelNumber(x, y)] = color;
+            } else if (y == 8 && SPARKLES) {
+                if (random(0, 20) == 0 && getPixColorXY(x, y - 1) != 0) 
+                    drawPixelXY(x, y, getPixColorXY(x, y - 1));
+                else 
+                    drawPixelXY(x, y, 0);
+            } else if (SPARKLES) {
 
-            // старая версия для яркости
-            if (getPixColorXY(x, y - 1) > 0)
-            drawPixelXY(x, y, getPixColorXY(x, y - 1));
-            else drawPixelXY(x, y, 0);
-
-        }
+                // старая версия для яркости
+                if (getPixColorXY(x, y - 1) > 0)
+                    drawPixelXY(x, y, getPixColorXY(x, y - 1));
+                else 
+                    drawPixelXY(x, y, 0);
+            }
         }
     }
 
@@ -237,10 +235,10 @@ void fireDrawFrame(int pcnt) {
         uint8_t newX = x;
         if (x > 15) newX = x - 15;
         CRGB color = CHSV(
-                    gScale * 2.5 + pgm_read_byte(&(fireHueMask[0][newX])), // H
-                    255,           // S
-                    (uint8_t)(((100.0 - pcnt) * fireMatrixValue[0][newX] + pcnt * fireLite[newX]) / 100.0) // V
-                    );
+            gScale * 2.5 + pgm_read_byte(&(fireHueMask[0][newX])), // H
+            255,           // S
+            (uint8_t)(((100.0 - pcnt) * fireMatrixValue[0][newX] + pcnt * fireLite[newX]) / 100.0) // V
+        );
         leds[getPixelNumber(newX, 0)] = color;
     }
 }
@@ -343,10 +341,10 @@ void matrixRoutine() {
 }
 
 // ----------------------------- СВЕТЛЯКИ ------------------------------
-#define LIGHTERS_AM 20
-struct { int x = 0; int y = 0; } gLightersPos [LIGHTERS_AM];
-struct { int vx = 0; int vy = 0; } gLightersSpeed [LIGHTERS_AM];
-CHSV gLightersColor[LIGHTERS_AM];
+#define LIGHTERS_COUNT 20
+struct { int x = 0; int y = 0; } gLightersPos [LIGHTERS_COUNT];
+struct { int vx = 0; int vy = 0; } gLightersSpeed [LIGHTERS_COUNT];
+CHSV gLightersColor[LIGHTERS_COUNT];
 byte gLightersloopCounter;
 bool gLightersInited = false;
 
@@ -354,7 +352,7 @@ void lightersRoutine() {
     if (!gLightersInited) {
         gLightersInited = true;
         randomSeed(millis());
-        for (byte i = 0; i < LIGHTERS_AM; i++) {
+        for (byte i = 0; i < LIGHTERS_COUNT; i++) {
             gLightersPos[i].x = random(0, WIDTH * 10);
             gLightersPos[i].y = random(0, HEIGHT * 10);
             gLightersSpeed[i].vx = random(-10, 10);
@@ -364,7 +362,7 @@ void lightersRoutine() {
     }
     FastLED.clear();
     if (++gLightersloopCounter > 20) gLightersloopCounter = 0;
-    for (byte i = 0; i < LIGHTERS_AM; i++) {
+    for (byte i = 0; i < LIGHTERS_COUNT; i++) {
         if (gLightersloopCounter == 0) {     // меняем скорость каждые 255 отрисовок
             gLightersSpeed[i].vx += random(-3, 4);
             gLightersSpeed[i].vy += random(-3, 4);
@@ -473,13 +471,13 @@ void madnessNoise() {
 
 void rainbowNoise() {
     gNoiseCurrentPalette = RainbowColors_p;
-    gNoiseColorLoop = 1;
+    gNoiseColorLoop = true;
     fillNoiseLED();
 }
 
 void rainbowStripeNoise() {
     gNoiseCurrentPalette = RainbowStripeColors_p;
-    gNoiseColorLoop = 1;
+    gNoiseColorLoop = true;
     fillNoiseLED();
 }
 
@@ -492,37 +490,37 @@ void zebraNoise() {
     gNoiseCurrentPalette[8] = CRGB::White;
     gNoiseCurrentPalette[12] = CRGB::White;
     
-    gNoiseColorLoop = 1;
+    gNoiseColorLoop = true;
     fillNoiseLED();
 }
 
 void forestNoise() {
     gNoiseCurrentPalette = ForestColors_p;
-    gNoiseColorLoop = 0;
+    gNoiseColorLoop = false;
     fillNoiseLED();
 }
 
 void oceanNoise() {
     gNoiseCurrentPalette = OceanColors_p;
-    gNoiseColorLoop = 0;
+    gNoiseColorLoop = false;
     fillNoiseLED();   
 }
 
 void plasmaNoise() {
     gNoiseCurrentPalette = PartyColors_p;
-    gNoiseColorLoop = 1;
+    gNoiseColorLoop = true;
     fillNoiseLED();
 }
 
 void cloudNoise() {
     gNoiseCurrentPalette = CloudColors_p;
-    gNoiseColorLoop = 0;
+    gNoiseColorLoop = false;
     fillNoiseLED();
 }
 
 void lavaNoise() {
     gNoiseCurrentPalette = LavaColors_p;
-    gNoiseColorLoop = 0;
+    gNoiseColorLoop = false;
     fillNoiseLED();
 }
 
@@ -533,7 +531,7 @@ void lavaNoise() {
 unsigned long gLastFrameTime = 0;
 byte gCurrentMode = 0;
 
-void effectsTick() 
+void effectsLoop() 
 {
     const unsigned int FRAME_INTERVAL = 30;
 

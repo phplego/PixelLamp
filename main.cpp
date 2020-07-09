@@ -311,7 +311,7 @@ void setup()
 
 void loop() 
 {
-    effectsTick();
+    effectsLoop();
     webService.loop();
     ArduinoOTA.handle();
 
