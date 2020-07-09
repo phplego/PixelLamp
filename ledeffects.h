@@ -144,7 +144,7 @@ void sparklesRoutine() {
 
 // -------------------------------------- огонь ---------------------------------------------
 // эффект "огонь"
-#define SPARKLES 1        // вылетающие угольки вкл выкл
+#define FIRE_SPARKLES 1        // вылетающие угольки вкл выкл
 unsigned char fireLite[WIDTH];
 int firePercent = 0;
 
@@ -214,12 +214,12 @@ void fireDrawFrame(int pcnt) {
                 );
 
                 leds[getPixelNumber(x, y)] = color;
-            } else if (y == 8 && SPARKLES) {
+            } else if (y == 8 && FIRE_SPARKLES) {
                 if (random(0, 20) == 0 && getPixColorXY(x, y - 1) != 0) 
                     drawPixelXY(x, y, getPixColorXY(x, y - 1));
                 else 
                     drawPixelXY(x, y, 0);
-            } else if (SPARKLES) {
+            } else if (FIRE_SPARKLES) {
 
                 // старая версия для яркости
                 if (getPixColorXY(x, y - 1) > 0)
