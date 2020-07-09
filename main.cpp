@@ -8,7 +8,7 @@
 #include "WebService.h"
 #include "utils.h"
 
-
+ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 
 #define APP_VERSION     "0.2"
 #define DEVICE_ID       "PixelLamp"
