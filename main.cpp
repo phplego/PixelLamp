@@ -10,13 +10,15 @@
 
 ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 
-#define APP_VERSION     "0.2"
+#define APP_VERSION     "0.3"
 #define DEVICE_ID       "PixelLamp"
 #define LED_PIN         2
+#define VCC2BAT_CORRECTION 0.7f
 
-#define MQTT_HOST "192.168.1.157"   // MQTT host (e.g. m21.cloudmqtt.com)
-#define MQTT_PORT 11883             // MQTT port (e.g. 18076)
-
+#define MQTT_HOST               "192.168.1.157"   // MQTT host (e.g. m21.cloudmqtt.com)
+#define MQTT_PORT               11883             // MQTT port (e.g. 18076)
+#define MQTT_PUBLISH_INTERVAL   60000             // 1 min
+#define VCC_MEASURE_INTERVAL    1000              // 1 sec
 
 CRGB leds[256] = {0};
 #include "ledeffects.h"
@@ -25,14 +27,22 @@ CRGB leds[256] = {0};
 const char* gConfigFile = "/config.json";
 byte gBrightness = 40;
 unsigned long gRestart = 0;
+float gVcc = 0;
 
 WiFiClient          client;                      // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
-WebService          webService;    // Web Server
+WebService          webService;                  // Web Server
 
 Adafruit_MQTT_Client mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
-Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set", MQTT_QOS_1);
+Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set");
+Adafruit_MQTT_Publish   mqtt_publish = Adafruit_MQTT_Publish   (&mqtt, "wifi2mqtt/pixellamp");
 
+unsigned long lastPublishTime = 0;
+unsigned long lastVccMeasureTime = 0;
+
+float getVcc(){
+    return (float)ESP.getVcc() / 1024.0f;
+}
 
 void saveTheConfig()
 {
@@ -60,6 +70,30 @@ void loadTheConfig()
     EEPROM.get(addr++, gCurrentMode);
 }
 
+void publishState()
+{
+    String jsonStr1 = "";
+
+    jsonStr1 += "{";
+    //jsonStr1 += "\"memory\": " + String(system_get_free_heap_size()) + ", ";
+    //jsonStr1 += "\"totalBytes\": " + String(fsInfo.totalBytes) + ", ";
+    //jsonStr1 += "\"usedBytes\": " + String(fsInfo.usedBytes) + ", ";
+    jsonStr1 += String("\"mode\": ") + gCurrentMode + ", ";
+    jsonStr1 += String("\"brightness\": ") + gBrightness + ", ";
+    jsonStr1 += String("\"vcc\": ") + gVcc + ", ";
+    jsonStr1 += String("\"vbat\": ") + (gVcc + VCC2BAT_CORRECTION) + ", ";
+    jsonStr1 += String("\"wifi-status\": ") + client.status() + ", ";
+    jsonStr1 += String("\"version\": \"") + APP_VERSION + "\"";
+    jsonStr1 += "}";
+
+    // Ensure the connection to the MQTT server is alive (this will make the first
+    // connection and automatically reconnect when disconnected).  See the MQTT_connect()
+    MQTT_connect(&mqtt);
+
+    // Publish state to output topic
+    mqtt_publish.publish(jsonStr1.c_str());
+}
+
 void setup() 
 {
 
@@ -74,7 +108,7 @@ void setup()
     // ЛЕНТА
     FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, 256);//.setCorrection( TypicalLEDStrip );
     FastLED.setBrightness(gBrightness);
-    FastLED.setMaxPowerInVoltsAndMilliamps(5, 500);
+    FastLED.setMaxPowerInVoltsAndMilliamps(5, 5000);
     FastLED.clear();
 
     leds[0] = CRGB::Blue;
@@ -133,7 +167,9 @@ void setup()
         str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
         str += String() + "      ESP Chip ID: " + ESP.getChipId() + " \n";
         str += String() + "       CpuFreqMHz: " + ESP.getCpuFreqMHz() + " \n";
-        str += String() + "              VCC: " + ESP.getVcc() + " \n";
+        str += String() + "              VCC: " + gVcc + " \n";
+        str += String() + "  ~Battery(aprox): " + (gVcc + VCC2BAT_CORRECTION) + " \n";
+        str += String() + "      WiFi status: " + client.status() + " \n";
         str += String() + "         FreeHeap: " + ESP.getFreeHeap() + " \n";
         str += String() + "       SketchSize: " + ESP.getSketchSize() + " \n";
         str += String() + "  FreeSketchSpace: " + ESP.getFreeSketchSpace() + " \n";
@@ -158,7 +194,7 @@ void setup()
         str += "<br><br>"; 
 
         str += "scale: " + String(gScale) + "<br>"; 
-        for(int i = 5; i < 61; i+=5){
+        for(int i = 0; i < 61; i+=5){
             str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-scale?scale="+String(i)+"\"'> ";
             str += String() + (gScale == i ? "* " : "") + i;
             str += "</button>\n"; 
@@ -180,6 +216,7 @@ void setup()
     webService.server->on("/set-mode", [](){
         gCurrentMode = atoi(webService.server->arg(0).c_str());
         saveTheConfig();
+        publishState();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index
         webService.server->send(302, "text/plane","");
     });
@@ -187,6 +224,7 @@ void setup()
     webService.server->on("/set-speed", [](){
         gModeConfigs[gCurrentMode].speed = atoi(webService.server->arg(0).c_str());
         saveTheConfig();
+        publishState();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
@@ -194,6 +232,7 @@ void setup()
     webService.server->on("/set-scale", [](){
         gModeConfigs[gCurrentMode].scale = atoi(webService.server->arg(0).c_str());
         saveTheConfig();
+        publishState();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
@@ -202,6 +241,7 @@ void setup()
         gBrightness = atoi(webService.server->arg(0).c_str());          
         FastLED.setBrightness(gBrightness);
         saveTheConfig();
+        publishState();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index  
         webService.server->send(302, "text/plane","");
     });
@@ -266,47 +306,16 @@ void setup()
         }
 
         saveTheConfig();
+        publishState();
     });
 
     
-    ArduinoOTA.onStart([]() {
-        String type;
-        if (ArduinoOTA.getCommand() == U_FLASH) {
-            type = "sketch";
-        } else { // U_FS
-            type = "filesystem";
-        }
-
-        // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        Serial.println("Start updating " + type);
-    });
-    ArduinoOTA.onEnd([]() {
-        Serial.println("\nEnd");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Error[%u]: ", error);
-        if (error == OTA_AUTH_ERROR) {
-        Serial.println("Auth Failed");
-        } else if (error == OTA_BEGIN_ERROR) {
-        Serial.println("Begin Failed");
-        } else if (error == OTA_CONNECT_ERROR) {
-        Serial.println("Connect Failed");
-        } else if (error == OTA_RECEIVE_ERROR) {
-        Serial.println("Receive Failed");
-        } else if (error == OTA_END_ERROR) {
-        Serial.println("End Failed");
-        }
-    });
-
     ArduinoOTA.begin();
 
     Serial.println("*** end setup ***");
+
+    publishState();
 }
-
-
 
 
 void loop() 
@@ -318,7 +327,21 @@ void loop()
     // Ensure the connection to the MQTT server is alive (this will make the first
     // connection and automatically reconnect when disconnected).  See the MQTT_connect()
     MQTT_connect(&mqtt);
-        
+
+
+    if(millis() > lastVccMeasureTime + VCC_MEASURE_INTERVAL)
+    {
+        gVcc = getVcc();
+        lastVccMeasureTime = millis();
+    }
+
+
+    if(millis() > lastPublishTime + MQTT_PUBLISH_INTERVAL)
+    {
+        publishState();
+        lastPublishTime = millis();
+    }
+
         
     // wait X milliseconds for subscription messages
     mqtt.processPackets(10);
