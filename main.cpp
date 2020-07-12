@@ -6,6 +6,7 @@
 #include <Adafruit_MQTT_Client.h>
 #include <EEPROM.h>
 #include "WebService.h"
+#include "Queue.h"
 #include "utils.h"
 
 ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
@@ -24,10 +25,11 @@ CRGB leds[256] = {0};
 #include "ledeffects.h"
 
 
-const char* gConfigFile = "/config.json";
-byte gBrightness = 40;
-unsigned long gRestart = 0;
-float gVcc = 0;
+const char *        gConfigFile = "/config.json";
+byte                gBrightness = 40;
+unsigned long       gRestart = 0;
+Queue<20>           vccQueue;
+
 
 WiFiClient          client;                      // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
@@ -80,8 +82,8 @@ void publishState()
     //jsonStr1 += "\"usedBytes\": " + String(fsInfo.usedBytes) + ", ";
     jsonStr1 += String("\"mode\": ") + gCurrentMode + ", ";
     jsonStr1 += String("\"brightness\": ") + gBrightness + ", ";
-    jsonStr1 += String("\"vcc\": ") + gVcc + ", ";
-    jsonStr1 += String("\"vbat\": ") + (gVcc + VCC2BAT_CORRECTION) + ", ";
+    jsonStr1 += String("\"vcc\": ") + vccQueue.average() + ", ";
+    jsonStr1 += String("\"vbat\": ") + (vccQueue.average() + VCC2BAT_CORRECTION) + ", ";
     jsonStr1 += String("\"wifi-status\": ") + client.status() + ", ";
     jsonStr1 += String("\"version\": \"") + APP_VERSION + "\"";
     jsonStr1 += "}";
@@ -104,6 +106,8 @@ void setup()
     // config loading
     loadTheConfig();
 
+    // measure vcc first time
+    vccQueue.add(getVcc());
 
     // ЛЕНТА
     FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, 256);//.setCorrection( TypicalLEDStrip );
@@ -129,17 +133,15 @@ void setup()
     WiFi.hostname(apName);
 
     wifiManager.setAPStaticIPConfig(IPAddress(10, 0, 1, 1), IPAddress(10, 0, 1, 1), IPAddress(255, 255, 255, 0));
+    wifiManager.setConfigPortalTimeout(60);
     wifiManager.autoConnect(apName.c_str(), "12341234"); // IMPORTANT! Blocks execution. Waits until connected
 
     //WiFi.begin("OpenWrt_2GHz", "111");
 
-
-    // Wait for WIFI connection
-
-    while (WiFi.status() != WL_CONNECTED)
+    // Restart if not connected
+    if (WiFi.status() != WL_CONNECTED)
     {
-        delay(10);
-        Serial.print(".");
+        ESP.restart();
     }
 
     Serial.print("\nConnected to ");
@@ -167,8 +169,8 @@ void setup()
         str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
         str += String() + "      ESP Chip ID: " + ESP.getChipId() + " \n";
         str += String() + "       CpuFreqMHz: " + ESP.getCpuFreqMHz() + " \n";
-        str += String() + "              VCC: " + gVcc + " \n";
-        str += String() + "  ~Battery(aprox): " + (gVcc + VCC2BAT_CORRECTION) + " \n";
+        str += String() + "              VCC: " + vccQueue.average() + " \n";
+        str += String() + "  ~Battery(aprox): " + (vccQueue.average() + VCC2BAT_CORRECTION) + " \n";
         str += String() + "      WiFi status: " + client.status() + " \n";
         str += String() + "         FreeHeap: " + ESP.getFreeHeap() + " \n";
         str += String() + "       SketchSize: " + ESP.getSketchSize() + " \n";
@@ -194,6 +196,9 @@ void setup()
         str += "<br><br>"; 
 
         str += "scale: " + String(gScale) + "<br>"; 
+        str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-scale?scale="+String(gScale-1)+"\"'>-1</button> ";
+        str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-scale?scale="+String(gScale+1)+"\"'>+1</button> ";
+        str += "&nbsp;&nbsp;";
         for(int i = 0; i < 61; i+=5){
             str += " <button style='font-size:25px; width:70px' onclick='document.location=\"/set-scale?scale="+String(i)+"\"'> ";
             str += String() + (gScale == i ? "* " : "") + i;
@@ -331,7 +336,7 @@ void loop()
 
     if(millis() > lastVccMeasureTime + VCC_MEASURE_INTERVAL)
     {
-        gVcc = getVcc();
+        vccQueue.add(getVcc());
         lastVccMeasureTime = millis();
     }
 
