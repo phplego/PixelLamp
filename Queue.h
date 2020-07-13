@@ -12,6 +12,7 @@ class Queue
         float   average();
         float   min();
         float   max();
+        bool    isFull();
 };
 
 template <int S>
@@ -52,4 +53,9 @@ float Queue<S>::max(){
         res = ::max(res, v);
     }
     return res;
+}
+
+template <int S>
+bool Queue<S>::isFull(){
+    return this->actualSize == S;
 }

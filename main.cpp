@@ -11,10 +11,12 @@
 
 ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 
-#define APP_VERSION     "0.3"
-#define DEVICE_ID       "PixelLamp"
-#define LED_PIN         2
-#define VCC2BAT_CORRECTION 0.7f
+#define APP_VERSION         "0.4"
+#define DEVICE_ID           "PixelLamp"
+#define LED_PIN             0
+#define MOSFET_PIN          2
+#define VCC2BAT_CORRECTION  0.7f
+#define TURN_OFF_VOLTAGE    3.7f
 
 #define MQTT_HOST               "192.168.1.157"   // MQTT host (e.g. m21.cloudmqtt.com)
 #define MQTT_PORT               11883             // MQTT port (e.g. 18076)
@@ -103,6 +105,9 @@ void setup()
 
     EEPROM.begin(512);
 
+    pinMode(MOSFET_PIN, OUTPUT);
+    digitalWrite(MOSFET_PIN, HIGH);
+
     // config loading
     loadTheConfig();
 
@@ -158,6 +163,7 @@ void setup()
         menu += "<a href='/'>index</a> ";
         menu += "<a href='/logout'>logout</a> ";
         menu += "<a href='/restart'>restart</a> ";
+        menu += "<a href='/turn-off'>turn off</a> ";
         menu += "</div><hr>";
 
 
@@ -257,6 +263,20 @@ void setup()
         gRestart = millis();
     });
 
+    webService.server->on("/turn-off", [menu](){
+        if(webService.server->method() == HTTP_POST){
+            webService.server->send(200, "text/html", "OK");
+            digitalWrite(MOSFET_PIN, LOW);
+            ESP.deepSleep(0);
+        }
+        else{
+            String output = "";
+            output += menu;
+            output += "<form method='post'><button>Turn off the lamp</button></form>";
+            webService.server->send(200, "text/html", output);
+        }
+    });
+
     // Logout (reset wifi settings)
     webService.server->on("/logout", [menu](){
         if(webService.server->method() == HTTP_POST){
@@ -272,7 +292,7 @@ void setup()
             output += String() + "    hostname: " + WiFi.hostname() + " \n";
             output += String() + "</pre>";
             output += "<form method='post'><button>Forget</button></form>";
-            webService.server->send(400, "text/html", output);
+            webService.server->send(200, "text/html", output);
         }
     });
 
@@ -338,6 +358,12 @@ void loop()
     {
         vccQueue.add(getVcc());
         lastVccMeasureTime = millis();
+
+        // turn off if battery is low
+        if(vccQueue.isFull() && vccQueue.average() + VCC2BAT_CORRECTION <= TURN_OFF_VOLTAGE){
+            digitalWrite(MOSFET_PIN, LOW);
+            ESP.deepSleep(0);
+        }
     }
 
 
