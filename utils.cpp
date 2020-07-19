@@ -71,7 +71,6 @@ String fileGetContents(const char * filename)
 bool loadConfig(const char * filename, std::function<void(DynamicJsonDocument)> onLoadCallback)
 {
     Serial.println(String("Loading config file: ") + filename);
-    bool success = false;
 
     String text = fileGetContents(filename);
 
@@ -114,7 +113,6 @@ bool saveConfig(const char * filename, DynamicJsonDocument json)
             Serial.println("Finished writing config file.");
             success = true;
         }
-        SPIFFS.end();
     }
     return success;
 }

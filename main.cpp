@@ -14,7 +14,7 @@ ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 #define APP_VERSION         "0.4"
 #define DEVICE_ID           "PixelLamp"
 #define LED_PIN             0
-#define MOSFET_PIN          2
+#define MOSFET_PIN          3 //RX
 #define VCC2BAT_CORRECTION  0.7f
 #define TURN_OFF_VOLTAGE    3.7f
 
@@ -37,9 +37,12 @@ WiFiClient          client;                      // WiFi Client
 WiFiManager         wifiManager;                 // WiFi Manager
 WebService          webService;                  // Web Server
 
+
+
 Adafruit_MQTT_Client mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
 Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set");
 Adafruit_MQTT_Publish   mqtt_publish = Adafruit_MQTT_Publish   (&mqtt, "wifi2mqtt/pixellamp");
+
 
 unsigned long lastPublishTime = 0;
 unsigned long lastVccMeasureTime = 0;
@@ -60,6 +63,12 @@ void saveTheConfig()
     EEPROM.put(addr++, gCurrentMode);
 
     EEPROM.commit();
+
+    DynamicJsonDocument json(1024);
+    json["temp"]   = 123;
+    json["mode"]   = 123;
+    saveConfig(gConfigFile, json);
+
 }
 
 void loadTheConfig()
@@ -104,6 +113,10 @@ void setup()
     Serial.begin(115200, SERIAL_8N1, SERIAL_TX_ONLY);
 
     EEPROM.begin(512);
+
+
+    //pinMode(1 /*TX*/, OUTPUT);
+    //pinMode(3 /*RX*/, OUTPUT);
 
     pinMode(MOSFET_PIN, OUTPUT);
     digitalWrite(MOSFET_PIN, HIGH);
@@ -158,12 +171,15 @@ void setup()
     // socketService.init();
     webService.init();
 
+
+
     String menu;
         menu += "<div>";
         menu += "<a href='/'>index</a> ";
         menu += "<a href='/logout'>logout</a> ";
         menu += "<a href='/restart'>restart</a> ";
         menu += "<a href='/turn-off'>turn off</a> ";
+        menu += "<a href='/index2.html'>index2.html</a> ";
         menu += "</div><hr>";
 
 
@@ -337,7 +353,11 @@ void setup()
     
     ArduinoOTA.begin();
 
+    //myBroker.init();
+
+
     Serial.println("*** end setup ***");
+    
 
     publishState();
 }
