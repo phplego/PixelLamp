@@ -11,7 +11,7 @@
 
 ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 
-#define APP_VERSION         "0.4"
+#define APP_VERSION         "0.5"
 #define DEVICE_ID           "PixelLamp"
 #define LED_PIN             0
 #define MOSFET_PIN          3 //RX
@@ -87,20 +87,18 @@ void publishState()
 {
     String jsonStr1 = "";
 
-    jsonStr1 += "{";
-    //jsonStr1 += "\"memory\": " + String(system_get_free_heap_size()) + ", ";
-    //jsonStr1 += "\"totalBytes\": " + String(fsInfo.totalBytes) + ", ";
-    //jsonStr1 += "\"usedBytes\": " + String(fsInfo.usedBytes) + ", ";
-    jsonStr1 += String("\"mode\": ") + gCurrentMode + ", ";
-    jsonStr1 += String("\"mode-name\": \"") + gModeStructs[gCurrentMode].name + "\", ";
-    jsonStr1 += String("\"speed\": ") + gModeConfigs[gCurrentMode].speed + ", ";
-    jsonStr1 += String("\"scale\": ") + gModeConfigs[gCurrentMode].scale + ", ";
-    jsonStr1 += String("\"brightness\": ") + gBrightness + ", ";
-    jsonStr1 += String("\"vcc\": ") + vccQueue.average() + ", ";
-    jsonStr1 += String("\"vbat\": ") + (vccQueue.average() + VCC2BAT_CORRECTION) + ", ";
-    //jsonStr1 += String("\"wifi-status\": ") + client.status() + ", ";
-    jsonStr1 += String("\"version\": \"") + APP_VERSION + "\"";
-    jsonStr1 += "}";
+    StaticJsonDocument<512> doc;
+
+    doc["mode"]         = gCurrentMode;
+    doc["mode-name"]    = gModeStructs[gCurrentMode].name;
+    doc["speed"]        = gModeConfigs[gCurrentMode].speed;
+    doc["scale"]        = gModeConfigs[gCurrentMode].scale;
+    doc["brightness"]   = gBrightness;
+    doc["vcc"]          = vccQueue.average();
+    doc["vbat"]         = vccQueue.average() + VCC2BAT_CORRECTION;
+    doc["version"]      = APP_VERSION;
+
+    serializeJson(doc, jsonStr1);
 
     // Ensure the connection to the MQTT server is alive (this will make the first
     // connection and automatically reconnect when disconnected).  See the MQTT_connect()
@@ -244,7 +242,7 @@ void setup()
 
 
     webService.server->on("/set-mode", [](){
-        gCurrentMode = atoi(webService.server->arg(0).c_str());
+        gCurrentMode = atoi(webService.server->arg(0).c_str()) % MODE_COUNT;
         saveTheConfig();
         publishState();
         webService.server->sendHeader("Location", "/",true);   //Redirect to index
@@ -335,8 +333,12 @@ void setup()
         
         if(error) return;
 
-        if(root.containsKey("mode"))
-            gCurrentMode = root["mode"];           // 0..17
+        if(root.containsKey("mode")){
+            int mode = root["mode"];
+            while(mode < 0) mode += MODE_COUNT;
+            gCurrentMode = (mode % MODE_COUNT);           // 0..17
+        }
+
 
         if(root.containsKey("speed"))
             gModeConfigs[gCurrentMode].speed = root["speed"];          
