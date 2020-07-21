@@ -243,30 +243,32 @@ void fireRoutine() {
 
 
 
-byte hue;
+byte gHue;
 // ---------------------------------------- радуга ------------------------------------------
 void rainbowVertical() {
-    hue += 2;
-    for (byte j = 0; j < HEIGHT; j++) {
-        CHSV thisColor = CHSV((byte)(hue + j * gScale), 255, 255);
-        for (byte i = 0; i < WIDTH; i++)
-        drawPixelXY(i, j, thisColor);
+    gHue += 2;
+    for (byte y = 0; y < HEIGHT; y++) {
+        CHSV thisColor = CHSV((byte)(gHue + y * gScale), 255, 255);
+        for (byte x = 0; x < WIDTH; x++){
+            drawPixelXY(x, y, thisColor);
+        }
     }
 }
 void rainbowHorizontal() {
-    hue += 2;
-    for (byte i = 0; i < WIDTH; i++) {
-        CHSV thisColor = CHSV((byte)(hue + i * gScale), 255, 255);
-        for (byte j = 0; j < HEIGHT; j++)
-        drawPixelXY(i, j, thisColor);   //leds[getPixelIndex(i, j)] = thisColor;
+    gHue += 2;
+    for (byte x = 0; x < WIDTH; x++) {
+        CHSV thisColor = CHSV((byte)(gHue + x * gScale), 255, 255);
+        for (byte y = 0; y < HEIGHT; y++){
+            drawPixelXY(x, y, thisColor); 
+        }
     }
 }
 
 // ---------------------------------------- ЦВЕТА ------------------------------------------
 void colorsRoutine() {
-    hue += gScale;
+    gHue += gScale;
     for (int i = 0; i < NUM_LEDS; i++) {
-        leds[i] = CHSV(hue, 255, 255);
+        leds[i] = CHSV(gHue, 255, 255);
     }
 }
 
@@ -282,7 +284,7 @@ void snowRoutine() {
     // сдвигаем всё вниз
     for (byte x = 0; x < WIDTH; x++) {
         for (byte y = 0; y < HEIGHT - 1; y++) {
-        drawPixelXY(x, y, getPixColorXY(x, y + 1));
+            drawPixelXY(x, y, getPixColorXY(x, y + 1));
         }
     }
 
@@ -290,9 +292,9 @@ void snowRoutine() {
         // заполняем случайно верхнюю строку
         // а также не даём двум блокам по вертикали вместе быть
         if (getPixColorXY(x, HEIGHT - 2) == 0 && (random(0, gScale) == 0))
-        drawPixelXY(x, HEIGHT - 1, 0xE0FFFF - 0x101010 * random(0, 4));
+            drawPixelXY(x, HEIGHT - 1, 0xE0FFFF - 0x101010 * random(0, 4));
         else
-        drawPixelXY(x, HEIGHT - 1, 0x000000);
+            drawPixelXY(x, HEIGHT - 1, 0x000000);
     }
 }
 
@@ -302,7 +304,7 @@ void matrixRoutine() {
         // заполняем случайно верхнюю строку
         uint32_t thisColor = getPixColorXY(x, HEIGHT - 1);
         if((thisColor & 0x00FF00) != thisColor) // если попался "незеленый пиксель"
-        thisColor = 0;
+            thisColor = 0;
 
         if (thisColor == 0)
             drawPixelXY(x, HEIGHT - 1, 0x00FF00 * (random(0, gScale) == 0));
@@ -315,7 +317,7 @@ void matrixRoutine() {
     // сдвигаем всё вниз
     for (byte x = 0; x < WIDTH; x++) {
         for (byte y = 0; y < HEIGHT - 1; y++) {
-        drawPixelXY(x, y, getPixColorXY(x, y + 1));
+            drawPixelXY(x, y, getPixColorXY(x, y + 1));
         }
     }
 }
@@ -542,11 +544,11 @@ void effectsLoop()
     if (millis() - gLastFrameTime >= FRAME_INTERVAL ) {
         gLastFrameTime = millis();
 
-        gSpeed = gModeConfigs[gCurrentMode].speed;
-        gScale = gModeConfigs[gCurrentMode].scale;
-
         if(gCurrentMode >= MODE_COUNT)
             gCurrentMode = 0;
+
+        gSpeed = gModeConfigs[gCurrentMode].speed;
+        gScale = gModeConfigs[gCurrentMode].scale;
 
         gModeStructs[gCurrentMode].routineFunction();
 
