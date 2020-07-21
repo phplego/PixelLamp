@@ -42,28 +42,10 @@ struct {
     byte scale = 0;
 } gModeConfigs [MODE_COUNT];
 
+// type for routine function
+typedef void (*RoutineFunction) ();
 
-// mode names
-const char * gModeNames [MODE_COUNT] = {
-    "sparkles",
-    "fire",
-    "rainbowVertical",
-    "rainbowHorizontal",
-    "colors",
-    "madness",
-    "cloud",
-    "lava",
-    "plasma",
-    "rainbow",
-    "rainbowStripe",
-    "zebra",
-    "forest",
-    "ocean",
-    "color",
-    "snow",
-    "matrix",
-    "lighters"
-};
+
 
 // служебные функции
 
@@ -75,7 +57,7 @@ void fillAll(CRGB color) {
 }
 
 // получить номер пикселя в ленте по координатам
-uint16_t getPixelNumber(int8_t x, int8_t y) {
+uint16_t getPixelIndex(int8_t x, int8_t y) {
     if ((THIS_Y % 2 == 0) || MATRIX_TYPE) {               // если чётная строка
         return (THIS_Y * _WIDTH + THIS_X);
     } else {                                              // если нечётная строка
@@ -87,30 +69,28 @@ uint16_t getPixelNumber(int8_t x, int8_t y) {
 // функция отрисовки точки по координатам X Y
 void drawPixelXY(int8_t x, int8_t y, CRGB color) {
     if (x < 0 || x > WIDTH - 1 || y < 0 || y > HEIGHT - 1) return;
-    int thisPixel = getPixelNumber(x, y) * SEGMENTS;
-    for (byte i = 0; i < SEGMENTS; i++) {
-        leds[thisPixel + i] = color;
-    }
+    int index = getPixelIndex(x, y) * SEGMENTS;
+    leds[index] = color;
 }
 
 // функция получения цвета пикселя по его номеру
-uint32_t getPixColor(int thisSegm) {
-    int thisPixel = thisSegm * SEGMENTS;
-    if (thisPixel < 0 || thisPixel > NUM_LEDS - 1) return 0;
-    return (((uint32_t)leds[thisPixel].r << 16) | ((long)leds[thisPixel].g << 8 ) | (long)leds[thisPixel].b);
+uint32_t getPixColor(int pixelIndex) {
+    if (pixelIndex < 0 || pixelIndex > NUM_LEDS - 1) return 0;
+    return (((uint32_t)leds[pixelIndex].r << 16) | ((long)leds[pixelIndex].g << 8 ) | (long)leds[pixelIndex].b);
 }
 
 // функция получения цвета пикселя в матрице по его координатам
 uint32_t getPixColorXY(int8_t x, int8_t y) {
-    return getPixColor(getPixelNumber(x, y));
+    return getPixColor(getPixelIndex(x, y));
 }
 
 
 
-// ================================= ЭФФЕКТЫ ====================================
+// ================================= Effects ====================================
 
 
-void fadePixel(int pixelNum, byte step) {     // новый фейдер
+// fade one pixel
+void fadePixel(int pixelNum, byte step) {     
     if (getPixColor(pixelNum) == 0) return;
 
     if (leds[pixelNum].r >= 30 ||
@@ -135,7 +115,7 @@ void sparklesRoutine() {
         byte x = random(0, WIDTH);
         byte y = random(0, HEIGHT);
         if (getPixColorXY(x, y) == 0)
-        leds[getPixelNumber(x, y)] = CHSV(random(0, 255), 255, 255);
+        leds[getPixelIndex(x, y)] = CHSV(random(0, 255), 255, 255);
     }
     fader(70);
 }
@@ -213,7 +193,7 @@ void fireDrawFrame(int pcnt) {
                     (uint8_t)max(0, nextv) // V
                 );
 
-                leds[getPixelNumber(x, y)] = color;
+                leds[getPixelIndex(x, y)] = color;
             } else if (y == 8 && FIRE_SPARKLES) {
                 if (random(0, 20) == 0 && getPixColorXY(x, y - 1) != 0) 
                     drawPixelXY(x, y, getPixColorXY(x, y - 1));
@@ -239,7 +219,7 @@ void fireDrawFrame(int pcnt) {
             255,           // S
             (uint8_t)(((100.0 - pcnt) * fireMatrixValue[0][newX] + pcnt * fireLite[newX]) / 100.0) // V
         );
-        leds[getPixelNumber(newX, 0)] = color;
+        leds[getPixelIndex(newX, 0)] = color;
     }
 }
 
@@ -278,7 +258,7 @@ void rainbowHorizontal() {
     for (byte i = 0; i < WIDTH; i++) {
         CHSV thisColor = CHSV((byte)(hue + i * gScale), 255, 255);
         for (byte j = 0; j < HEIGHT; j++)
-        drawPixelXY(i, j, thisColor);   //leds[getPixelNumber(i, j)] = thisColor;
+        drawPixelXY(i, j, thisColor);   //leds[getPixelIndex(i, j)] = thisColor;
     }
 }
 
@@ -441,7 +421,7 @@ void fillNoiseLED() {
             bri = dim8_raw( bri * 2);
         }
         CRGB color = ColorFromPalette( gNoiseCurrentPalette, index, bri);      
-        drawPixelXY(i, j, color);   //leds[getPixelNumber(i, j)] = color;
+        drawPixelXY(i, j, color);   //leds[getPixelIndex(i, j)] = color;
         }
     }
     gNoiseHue += 1;
@@ -527,6 +507,30 @@ void lavaNoise() {
 
 //========================================================
 
+struct {
+    const char * name;
+    RoutineFunction routineFunction;
+} gModeStructs [MODE_COUNT] = {
+    {"sparkles", sparklesRoutine},
+    {"fire", fireRoutine},
+    {"lighters", lightersRoutine},
+    {"cloud", cloudNoise},
+    {"lava", lavaNoise},
+    {"plasma", plasmaNoise},
+    {"rainbow", rainbowNoise},
+    {"rainbowStripe", rainbowStripeNoise},
+    {"zebra", zebraNoise},
+    {"forest", forestNoise},
+    {"ocean", oceanNoise},
+    {"madness", madnessNoise},
+    {"color", colorRoutine},
+    {"snow", snowRoutine},
+    {"matrix", matrixRoutine},
+    {"rainbowVertical", rainbowVertical},
+    {"rainbowHorizontal", rainbowHorizontal},
+    {"colors", colorRoutine},
+};
+
 
 unsigned long gLastFrameTime = 0;
 byte gCurrentMode = 0;
@@ -541,44 +545,49 @@ void effectsLoop()
         gSpeed = gModeConfigs[gCurrentMode].speed;
         gScale = gModeConfigs[gCurrentMode].scale;
 
-        switch (gCurrentMode) {
-            case 0: sparklesRoutine();
-                break;
-            case 1: fireRoutine();
-                break;
-            case 2: rainbowVertical();
-                break;
-            case 3: rainbowHorizontal();
-                break;
-            case 4: colorsRoutine();
-                break;
-            case 5: madnessNoise();
-                break;
-            case 6: cloudNoise();
-                break;
-            case 7: lavaNoise();
-                break;
-            case 8: plasmaNoise();
-                break;
-            case 9: rainbowNoise();
-                break;
-            case 10: rainbowStripeNoise();
-                break;
-            case 11: zebraNoise();
-                break;
-            case 12: forestNoise();
-                break;
-            case 13: oceanNoise();
-                break;
-            case 14: colorRoutine();
-                break;
-            case 15: snowRoutine();
-                break;
-            case 16: matrixRoutine();
-                break;
-            case 17: lightersRoutine();
-                break;
-        }
+        if(gCurrentMode >= MODE_COUNT)
+            gCurrentMode = 0;
+
+        gModeStructs[gCurrentMode].routineFunction();
+
+        // switch (gCurrentMode) {
+        //     case 0: sparklesRoutine();
+        //         break;
+        //     case 1: fireRoutine();
+        //         break;
+        //     case 2: rainbowVertical();
+        //         break;
+        //     case 3: rainbowHorizontal();
+        //         break;
+        //     case 4: colorsRoutine();
+        //         break;
+        //     case 5: madnessNoise();
+        //         break;
+        //     case 6: cloudNoise();
+        //         break;
+        //     case 7: lavaNoise();
+        //         break;
+        //     case 8: plasmaNoise();
+        //         break;
+        //     case 9: rainbowNoise();
+        //         break;
+        //     case 10: rainbowStripeNoise();
+        //         break;
+        //     case 11: zebraNoise();
+        //         break;
+        //     case 12: forestNoise();
+        //         break;
+        //     case 13: oceanNoise();
+        //         break;
+        //     case 14: colorRoutine();
+        //         break;
+        //     case 15: snowRoutine();
+        //         break;
+        //     case 16: matrixRoutine();
+        //         break;
+        //     case 17: lightersRoutine();
+        //         break;
+        // }
         FastLED.show();
     }
 }

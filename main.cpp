@@ -92,12 +92,13 @@ void publishState()
     //jsonStr1 += "\"totalBytes\": " + String(fsInfo.totalBytes) + ", ";
     //jsonStr1 += "\"usedBytes\": " + String(fsInfo.usedBytes) + ", ";
     jsonStr1 += String("\"mode\": ") + gCurrentMode + ", ";
+    jsonStr1 += String("\"mode-name\": \"") + gModeStructs[gCurrentMode].name + "\", ";
     jsonStr1 += String("\"speed\": ") + gModeConfigs[gCurrentMode].speed + ", ";
     jsonStr1 += String("\"scale\": ") + gModeConfigs[gCurrentMode].scale + ", ";
     jsonStr1 += String("\"brightness\": ") + gBrightness + ", ";
     jsonStr1 += String("\"vcc\": ") + vccQueue.average() + ", ";
     jsonStr1 += String("\"vbat\": ") + (vccQueue.average() + VCC2BAT_CORRECTION) + ", ";
-    jsonStr1 += String("\"wifi-status\": ") + client.status() + ", ";
+    //jsonStr1 += String("\"wifi-status\": ") + client.status() + ", ";
     jsonStr1 += String("\"version\": \"") + APP_VERSION + "\"";
     jsonStr1 += "}";
 
@@ -205,7 +206,7 @@ void setup()
 
         for(int i = 0; i < MODE_COUNT; i++){
             str += "<button style='font-size:25px' onclick='document.location=\"/set-mode?mode="+String(i)+"\"'> ";
-            str += String() + (gCurrentMode == i ? "* " : "") + gModeNames[i];
+            str += String() + (gCurrentMode == i ? "* " : "") + gModeStructs[i].name;
             str += "</button> "; 
         }
         str += "<br>"; 
