@@ -9,6 +9,7 @@
 #include "Queue.h"
 #include "utils.h"
 
+
 ADC_MODE(ADC_VCC); // for make ESP.getVCC() work
 
 #define APP_VERSION         "0.5"
@@ -39,9 +40,9 @@ WebService          webService;                  // Web Server
 
 
 
-Adafruit_MQTT_Client mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
-Adafruit_MQTT_Subscribe mqtt_sub_set = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set");
-Adafruit_MQTT_Publish   mqtt_publish = Adafruit_MQTT_Publish   (&mqtt, "wifi2mqtt/pixellamp");
+Adafruit_MQTT_Client    mqtt(&client, MQTT_HOST, MQTT_PORT);   // MQTT client
+Adafruit_MQTT_Subscribe mqttSubscription    = Adafruit_MQTT_Subscribe (&mqtt, "wifi2mqtt/pixellamp/set");
+Adafruit_MQTT_Publish   mqttPublish         = Adafruit_MQTT_Publish   (&mqtt, "wifi2mqtt/pixellamp");
 
 
 unsigned long lastPublishTime = 0;
@@ -85,27 +86,27 @@ void loadTheConfig()
 
 void publishState()
 {
-    String jsonStr1 = "";
-
+    String jsonStr;
     StaticJsonDocument<512> doc;
+    float vccRouned = round(vccQueue.average() * 100.0) / 100.0;
 
     doc["mode"]         = gCurrentMode;
     doc["mode-name"]    = gModeStructs[gCurrentMode].name;
     doc["speed"]        = gModeConfigs[gCurrentMode].speed;
     doc["scale"]        = gModeConfigs[gCurrentMode].scale;
     doc["brightness"]   = gBrightness;
-    doc["vcc"]          = vccQueue.average();
-    doc["vbat"]         = vccQueue.average() + VCC2BAT_CORRECTION;
+    doc["vcc"]          = vccRouned;
+    doc["vbat"]         = vccRouned + VCC2BAT_CORRECTION;
     doc["version"]      = APP_VERSION;
 
-    serializeJson(doc, jsonStr1);
+    serializeJson(doc, jsonStr);
 
     // Ensure the connection to the MQTT server is alive (this will make the first
     // connection and automatically reconnect when disconnected).  See the MQTT_connect()
     MQTT_connect(&mqtt);
 
     // Publish state to output topic
-    mqtt_publish.publish(jsonStr1.c_str());
+    mqttPublish.publish(jsonStr.c_str());
 }
 
 void setup() 
@@ -150,12 +151,15 @@ void setup()
     String apName = String("esp-") + DEVICE_ID + "-v" + APP_VERSION + "-" + ESP.getChipId();
     apName.replace('.', '_');
     WiFi.hostname(apName);
+    wifi_set_sleep_type(NONE_SLEEP_T); //prevent wifi sleep (stronger connection)
+
 
     wifiManager.setAPStaticIPConfig(IPAddress(10, 0, 1, 1), IPAddress(10, 0, 1, 1), IPAddress(255, 255, 255, 0));
     wifiManager.setConfigPortalTimeout(60);
     wifiManager.autoConnect(apName.c_str(), "12341234"); // IMPORTANT! Blocks execution. Waits until connected
 
     //WiFi.begin("OpenWrt_2GHz", "111");
+
 
     // Restart if not connected
     if (WiFi.status() != WL_CONNECTED)
@@ -298,6 +302,7 @@ void setup()
     webService.server->on("/logout", [menu](){
         if(webService.server->method() == HTTP_POST){
             webService.server->send(200, "text/html", "OK");
+            wifiManager.resetSettings();
             ESP.reset();
         }
         else{
@@ -315,10 +320,10 @@ void setup()
 
 
     // Setup MQTT subscription for the 'set' topic.
-    mqtt.subscribe(&mqtt_sub_set);
+    mqtt.subscribe(&mqttSubscription);
 
     
-    mqtt_sub_set.setCallback([](char *str, uint16_t len){
+    mqttSubscription.setCallback([](char *str, uint16_t len){
 
         char buf [len + 1];
         buf[len] = 0;

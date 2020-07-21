@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <FastLED.h>
 
-#define MODE_COUNT 18          // 0..17
-#define MATRIX_TYPE 0         // тип матрицы: 0 - зигзаг, 1 - параллельная
+#define MODE_COUNT 18           // 0..17
+#define MATRIX_TYPE 0           // тип матрицы: 0 - зигзаг, 1 - параллельная
 
 //bool loadingFlag = false;
 const int WIDTH = 16;
