@@ -148,7 +148,7 @@ void setup()
 
 
     // =====================  Setup WiFi ==================
-    String apName = String("esp-") + DEVICE_ID + "-v" + APP_VERSION + "-" + ESP.getChipId();
+    String apName = String("esp-") + DEVICE_ID + "-" + ESP.getChipId();
     apName.replace('.', '_');
     WiFi.hostname(apName);
     wifi_set_sleep_type(NONE_SLEEP_T); //prevent wifi sleep (stronger connection)
@@ -195,6 +195,7 @@ void setup()
         str += String() + "           Uptime: " + (millis() / 1000) + " \n";
         str += String() + "      FullVersion: " + ESP.getFullVersion() + " \n";
         str += String() + "      ESP Chip ID: " + ESP.getChipId() + " \n";
+        str += String() + "         Hostname: " + WiFi.hostname() + " \n";
         str += String() + "       CpuFreqMHz: " + ESP.getCpuFreqMHz() + " \n";
         str += String() + "              VCC: " + vccQueue.average() + " \n";
         str += String() + "  ~Battery(aprox): " + (vccQueue.average() + VCC2BAT_CORRECTION) + " \n";
@@ -279,9 +280,17 @@ void setup()
     });
 
     webService.server->on("/restart", [menu](){
-        webService.server->sendHeader("Location", "/",true);   //Redirect to index  
-        webService.server->send(200, "text/html", "<script> setTimeout(()=> document.location = '/', 5000) </script> restarting ESP ...");
-        gRestart = millis();
+        if(webService.server->method() == HTTP_POST){
+            webService.server->sendHeader("Location", "/",true);   //Redirect to index  
+            webService.server->send(200, "text/html", "<script> setTimeout(()=> document.location = '/', 5000) </script> restarting ESP ...");
+            gRestart = millis();
+        }
+        else{
+            String output = "";
+            output += menu;
+            output += "<form method='post'><button>Restart ESP</button></form>";
+            webService.server->send(200, "text/html", output);
+        }
     });
 
     webService.server->on("/turn-off", [menu](){
@@ -293,7 +302,7 @@ void setup()
         else{
             String output = "";
             output += menu;
-            output += "<form method='post'><button>Turn off the lamp</button></form>";
+            output += "<form method='post'><button>Turn off the MOSFET and go to deep sleep mode</button></form>";
             webService.server->send(200, "text/html", output);
         }
     });
